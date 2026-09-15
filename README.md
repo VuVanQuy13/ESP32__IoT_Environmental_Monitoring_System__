@@ -1,104 +1,118 @@
-# ESP32 Environmental Monitor — FreeRTOS
+# 🌍 IoT Environmental Monitoring System with ESP32 + WebSocket + Blynk
 
-Hệ thống giám sát nhiệt độ, độ ẩm và bụi bằng ESP32, DHT11 và Sharp GP2Y10; điều khiển ba ngõ ra và cung cấp dashboard web/Blynk.
+## 📌 Introduction
+This is an **IoT environmental monitoring system** built using the **ESP32**.
+The system measures **temperature, humidity, and dust concentration**, then displays the data in real time on:
 
-## Chức năng
+- A **Web Dashboard** (HTML/CSS + WebSocket) hosted directly on the ESP32.
+- The **Blynk IoT app** for remote monitoring and control over the Internet.
 
-- Đọc cảm biến, xem số đo và chỉnh ngưỡng trên web/Blynk.
-- **Auto:** điều khiển GPIO theo ngưỡng. **Manual:** điều khiển từng ngõ ra qua Blynk; thao tác nút ngõ ra tự chuyển toàn hệ thống sang Manual.
-- Lưu ngưỡng bằng Preferences/NVS. Khởi động ở Auto; không lưu mode/ngõ ra qua reboot.
-- Ba task FreeRTOS: Sensor, Control, Communication, trao đổi bản sao dữ liệu qua queue.
-- Sensor/Control được tạo trước các lần thử kết nối mạng; Wi-Fi/Blynk có lịch kết nối lại.
+The system supports **Automatic/Manual modes** and allows alert thresholds to be adjusted directly through the **web interface** or the **Blynk app**. Threshold values are stored using **Preferences (ESP32 emulated EEPROM)** so they are retained after a restart.
 
-## Phần cứng và điều khiển
+---
 
-| Thành phần | Chân ESP32 | Chức năng |
-| --- | --- | --- |
-| ESP32 DOIT DevKit V1 | — | Board cấu hình trong PlatformIO |
-| DHT11 | GPIO13 | Nhiệt độ và độ ẩm |
-| Sharp GP2Y10 | GPIO34 / GPIO25 | ADC / điều khiển LED cảm biến |
-| Ngõ ra nhiệt độ | GPIO22 | HIGH khi nhiệt độ > ngưỡng trong Auto |
-| Ngõ ra độ ẩm | GPIO5 | HIGH khi độ ẩm < ngưỡng trong Auto |
-| Ngõ ra bụi | GPIO2 | HIGH khi bụi > ngưỡng trong Auto |
+## ⚙️ Features
 
-Ngưỡng mặc định khi chưa lưu NVS: **35 °C**, **80%**, **100 cho bụi**. Khi số đo bằng ngưỡng, điều kiện bật tương ứng là sai. Không có hysteresis. Bảng mô tả mức GPIO; cách bật tải phụ thuộc mạch nối ngoài.
+- 🌡 Measure **temperature & humidity** using a **DHT11** sensor.
+- 🌫 Measure **dust concentration** using a **Sharp GP2Y10** sensor with a custom C++ driver.
+- 📡 Display live readings on a **Web Dashboard** using WebSocket, SPIFFS, and Bootstrap.
+- 📱 Connect to **Blynk IoT Cloud** for remote monitoring and control.
+- 🔧 Adjust **control thresholds** through web sliders or the Blynk app.
+- 💾 Store thresholds using **Preferences / NVS**. The current dust threshold storage keys differ between web updates and startup, so web dust settings may not be restored after a restart.
+- 💡 Support **Automatic/Manual modes** for three GPIO outputs; Blynk output commands automatically select Manual mode.
+- 🧵 Organize firmware into **three FreeRTOS tasks**:
+  - **SensorTask:** read DHT11 and Sharp GP2Y10 sensors.
+  - **ControlTask:** process commands, apply Auto/Manual logic, update GPIO outputs, and save thresholds.
+  - **Communication:** service Wi-Fi/Blynk, publish web data, and schedule reconnection attempts.
+- 📬 Exchange sensor samples and commands through a **FIFO queue**, with single-slot queues retaining the latest control snapshot and telemetry.
+- 🛡 Monitor each application task using the **Task Watchdog Timer**.
+- 🔄 Start sensor acquisition and control before network connection attempts; retry Wi-Fi/Blynk and resend the current local state when Blynk reconnects.
 
-**Đơn vị bụi chưa thống nhất:** chú thích driver ghi mg/m³, web ghi µg/m³, nhưng dữ liệu truyền thẳng không đổi đơn vị. Công thức hiện tại là `max((raw * (3.3 / 4096) - 0.6) / 0.5, 0)`. Cần xác minh đơn vị và hiệu chuẩn trước khi diễn giải số đo/ngưỡng bụi.
+---
 
-## Cấu trúc và công nghệ
+## 🛠 Technologies & Tools
+
+- **Firmware Language:** C++ with the Arduino framework.
+- **Microcontroller:** ESP32 DOIT DevKit V1.
+- **RTOS:** FreeRTOS tasks, priorities, task pinning, queues, and task delays.
+- **IoT Platform:** Blynk IoT Cloud.
+- **Web:** HTML, CSS, JavaScript, Bootstrap, Font Awesome, HTTP, and WebSocket.
+- **Sensors:** DHT11 and Sharp GP2Y10 with a custom C++ driver.
+- **Networking Libraries:** WiFi, ESPAsyncWebServer, AsyncTCP, Blynk, and lwIP for asynchronous DNS and socket operations.
+- **Data & Storage:** Arduino_JSON, SPIFFS for web assets, and Preferences / NVS for thresholds.
+- **Monitoring:** ESP32 Task Watchdog (`esp_task_wdt`) and structured Serial logs.
+- **Development Tools:** PlatformIO with the Arduino framework, Git, and GitHub.
+
+---
+
+## 📂 Project Structure
 
 ```text
 .
-├── platformio.ini       Board, framework, thư viện
-├── src/                 Firmware C++: main, shared, các task
-├── data/                index.html, Style.css, main.js cho SPIFFS
-└── docs/                Hướng dẫn RTOS và kết quả kiểm thử lịch sử
+├── platformio.ini                 # Board, framework, and library dependencies
+├── src/
+│   ├── main.cpp                   # Initialize watchdog, queues, and application tasks
+│   ├── README.md                  # Firmware architecture and data flow
+│   ├── shared/
+│   │   ├── app_types.h            # Events, sensor readings, snapshots, and telemetry
+│   │   ├── app_queues.h/.cpp       # FreeRTOS queue interfaces and implementation
+│   │   └── task_support.h         # Resource checks and fatal-error logging
+│   └── tasks/
+│       ├── sensor/
+│       │   ├── sensor_task.h/.cpp          # Sensor acquisition task
+│       │   └── SharpGP2Y10.h/.cpp          # Custom dust sensor driver
+│       ├── control/
+│       │   ├── control_task.h/.cpp         # GPIO and Preferences owner
+│       │   ├── control_logic.h/.cpp        # Auto/Manual decisions
+│       │   └── control_state.h/.cpp        # Event processing and state transitions
+│       └── communication/
+│           ├── communication_task.h/.cpp  # Network and telemetry task
+│           ├── communication_state.h/.cpp # Retry schedules and Blynk outbox
+│           ├── network_connection.h/.cpp  # Wi-Fi, Blynk, and command callbacks
+│           ├── network_config.example.h   # Wi-Fi/Blynk configuration template
+│           ├── network_config.h           # Device-specific configuration
+│           ├── async_dns.h/.cpp           # Asynchronous DNS resolver
+│           ├── bounded_wifi_client.h/.cpp # Blynk socket transport
+│           ├── web_dashboard.h/.cpp       # HTTP/WebSocket server and JSON publishing
+│           └── web_command.h/.cpp         # Web command parser
+├── data/
+│   ├── index.html                 # Dashboard markup
+│   ├── Style.css                  # Dashboard styling
+│   └── main.js                    # WebSocket client and threshold sliders
+├── docs/
+│   ├── rtos-guide.md              # RTOS source walkthrough
+│   ├── validation.md              # Historical validation results and limitations
+│   ├── codebase-map.md            # Module and dependency map
+│   └── context.md                 # Project context and decisions
+└── README.md
 ```
 
-Stack: Arduino framework, FreeRTOS, Wi-Fi, ESPAsyncWebServer/AsyncTCP, Arduino_JSON, Blynk, Preferences và SPIFFS. Dependency trực tiếp nằm trong [platformio.ini](platformio.ini). `espressif32` chưa khóa phiên bản; kết quả build lịch sử không bảo đảm cho mọi phiên bản framework tải mới.
+The `.h/.cpp` notation represents two files with the same base name. Web assets in `data/` are uploaded separately to SPIFFS.
 
-## Cấu hình và build
+---
 
-Mở **thư mục gốc chứa `platformio.ini`** bằng PlatformIO IDE hoặc dùng PlatformIO Core CLI. Chạy các lệnh dưới đây tại thư mục đó.
+## Web Dashboard Interface:
+<img width="1917" height="913" alt="image" src="https://github.com/user-attachments/assets/ed7c83a6-ef63-4d88-a2bc-2574b901cb92" />
 
-1. Nếu chưa có `src/tasks/communication/network_config.h`, sao chép [network_config.example.h](src/tasks/communication/network_config.example.h) thành file này trong cùng thư mục.
-2. Điền `BLYNK_TEMPLATE_ID`, `BLYNK_TEMPLATE_NAME`, `BLYNK_AUTH_TOKEN`, `networkConfig::ssid` và `networkConfig::password` của bạn.
-3. Build firmware:
+---
 
-   ```sh
-   pio run -e esp32doit-devkit-v1
-   ```
+## BLYNK Interface:
+<img width="1617" height="742" alt="image" src="https://github.com/user-attachments/assets/f35b83a9-2b18-497a-9ec4-69e8e346aa2f" />
 
-**Cấu hình riêng:** trong trạng thái repo được rà soát, `network_config.h` đang được Git theo dõi và `.gitignore` chưa loại trừ file này. Không đưa token/mật khẩu cá nhân vào commit hoặc bản chia sẻ.
+---
 
-### Nạp board và SPIFFS
+## Altium:
 
-Kết nối board bằng USB, chạy lần lượt:
+- **SCH**:
+<img width="1081" height="717" alt="image" src="https://github.com/user-attachments/assets/3a977b6c-a00d-4419-afe5-d5c3162974ae" />
 
-```sh
-pio run -e esp32doit-devkit-v1 -t upload
-pio run -e esp32doit-devkit-v1 -t uploadfs
-pio device monitor -b 9600
-```
+- **PCB**:
+<img width="1119" height="712" alt="image" src="https://github.com/user-attachments/assets/37066228-31f4-4d04-9528-03fb1f0f843e" />
 
-`upload` nạp firmware; `uploadfs` nạp giao diện trong `data/` vào SPIFFS. Khi sửa HTML/CSS/JS, nạp lại filesystem. Nếu có nhiều cổng nối tiếp, thêm `--upload-port COMx` vào lệnh nạp và `-p COMx` vào monitor, thay `COMx` bằng cổng thực tế.
+---
 
-## Sử dụng
+## Completed Circuit Board:
 
-### Dashboard web
+![ALtium](https://github.com/user-attachments/assets/f8a46e01-963e-4a49-8875-94911fc64c47)
 
-1. Cho ESP32 kết nối Wi-Fi đã cấu hình; tìm IP trong danh sách DHCP của router. Firmware hiện log trạng thái kết nối, không in IP.
-2. Mở `http://<IP-ESP32>/` từ máy có thể truy cập ESP32 trong LAN.
-3. Xem số đo và chỉnh slider: nhiệt độ 0–100, độ ẩm 0–100, bụi 0–250; bước chỉnh 1.
-
-Web dùng HTTP cổng 80 và WebSocket `/ws`; giao diện chỉ có số đo/ngưỡng. Nút mode và Manual nằm trên Blynk. Bootstrap/Font Awesome tải từ CDN nên trình bày có thể thiếu khi trình duyệt không có Internet. HTTP/WebSocket hiện không có xác thực hay TLS.
-
-### Blynk virtual pins
-
-Thiết lập datastream/widget tương ứng với các pin firmware sử dụng:
-
-| Pin | Nội dung | Chiều dữ liệu |
-| --- | --- | --- |
-| V0 / V1 / V2 | Nhiệt độ / độ ẩm / bụi | ESP32 → Blynk |
-| V3 / V4 / V5 | Trạng thái ngõ ra tương ứng, 0 hoặc 1 | ESP32 → Blynk |
-| V6 / V7 / V8 | Nút ngõ ra tương ứng, 1 bật / 0 tắt | Hai chiều |
-| V9 | 1 Auto / 0 Manual | Hai chiều |
-| V10 / V11 / V12 | Ngưỡng nguyên nhiệt độ / độ ẩm / bụi | Hai chiều |
-
-Chọn Auto hoặc đổi ngưỡng có hiệu lực điều khiển ở mẫu tiếp theo. Khi cloud kết nối lại, ESP32 gửi trạng thái cục bộ hiện tại; không gọi `syncAll()` lấy trạng thái cloud cũ.
-
-## Vận hành và giới hạn
-
-- Telemetry được tạo mỗi khoảng 2 giây theo timestamp mẫu. Sensor nghỉ 10 ms sau mỗi lượt đọc; đây không phải chu kỳ lấy mẫu chính xác 10 ms.
-- Wi-Fi thử lại theo lịch 30 giây; Blynk theo lịch 5 giây sau lần thử. Trong một phiên cloud, các lần gửi virtual pin thành công cách nhau ít nhất 125 ms.
-- Mailbox chỉ giữ dữ liệu mới nhất, không lưu lịch sử khi mất mạng. Mất Wi-Fi khiến web LAN không truy cập được; Sensor/Control có luồng xử lý riêng.
-- **Ngưỡng bụi sau reboot:** web lưu khóa `DoBui`, khởi động và Blynk dùng `Bui`. Ngưỡng bụi đặt trên web có thể không được khôi phục.
-- **Cảm biến lỗi:** ở mẫu đến lịch telemetry, nếu nhiệt độ/độ ẩm NaN hoặc bụi ngoài 0–1000, Blynk nhận `{50,50,50}`; Auto cũng dùng bộ này ở lần đó. Web nhận mẫu thô. Đây là hành vi hiện có, chưa phải chính sách an toàn đã nghiệm thu.
-
-## Tài liệu và kiểm chứng
-
-- [Cấu trúc source và luồng dữ liệu](src/README.md).
-- [Hướng dẫn đọc RTOS](docs/rtos-guide.md).
-- [Kết quả kiểm thử lịch sử](docs/validation.md).
-
-Bản RTOS từng build và qua kiểm thử host theo ghi nhận trong tài liệu. Bộ test host/fixture đã được gỡ khỏi repository; chưa nghiệm thu bản RTOS trên board thật. Các lệnh nạp trên đây là hướng dẫn triển khai, không phải xác nhận đã chạy trên thiết bị.
+![Bottom View](https://github.com/user-attachments/assets/4c70fc32-14a1-4549-aa13-a8ec93be3b7f)
