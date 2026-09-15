@@ -43,7 +43,7 @@ Queue truyền **bản sao dữ liệu**. Phần điều khiển không gọi Bl
 
 ## 3. Điểm bắt đầu: main.cpp
 
-Mở [setup()](../Code_Git/src/main.cpp#L10). Đọc theo thứ tự:
+Mở [setup()](../src/main.cpp#L10). Đọc theo thứ tự:
 
 1. Khởi tạo Serial và cấu hình watchdog 15 giây.
 2. `createAppQueues()` tạo các kênh truyền dữ liệu trước khi task/callback sử dụng.
@@ -55,11 +55,11 @@ Khác biệt quan trọng của bước 4: việc tạo SensorTask không còn n
 
 `start...Task()` tạo task rồi trả về; nó không gọi trực tiếp hàm có vòng lặp vô tận để đợi hàm đó kết thúc. Scheduler có thể cho task mới chạy ngay trong quá trình `setup()` chưa hoàn tất, tùy trạng thái và priority. Thứ tự trên là thứ tự yêu cầu tạo task, không phải một hàng rào bắt mọi task khởi tạo xong lần lượt.
 
-[loop()](../Code_Git/src/main.cpp#L21) chỉ ngủ 1000 ms mỗi vòng. Nó vẫn tồn tại theo framework Arduino. Ta không gọi thêm `vTaskStartScheduler()` vì framework đã khởi động scheduler.
+[loop()](../src/main.cpp#L21) chỉ ngủ 1000 ms mỗi vòng. Nó vẫn tồn tại theo framework Arduino. Ta không gọi thêm `vTaskStartScheduler()` vì framework đã khởi động scheduler.
 
 ## 4. Cách đọc một lệnh tạo task
 
-Đọc [startControlTask()](../Code_Git/src/tasks/control/control_task.cpp#L78):
+Đọc [startControlTask()](../src/tasks/control/control_task.cpp#L78):
 
 ```cpp
 xTaskCreatePinnedToCore(controlTask, "ControlTask", CONTROL_STACK_BYTES, nullptr,
@@ -82,7 +82,7 @@ Trong thân hàm, phần **trước** `for (;;)` chỉ chạy một lần khi ta
 
 ## 5. Các kiểu dữ liệu: đọc app_types.h trước app_queues.cpp
 
-Mở [ControlEvent](../Code_Git/src/shared/app_types.h#L48). `ControlEvent` là **kiểu struct**, còn trong `ControlEvent event;`, `event` mới là biến.
+Mở [ControlEvent](../src/shared/app_types.h#L48). `ControlEvent` là **kiểu struct**, còn trong `ControlEvent event;`, `event` mới là biến.
 
 | Trường | Dùng để đọc sự kiện |
 | --- | --- |
@@ -95,13 +95,13 @@ Mở [ControlEvent](../Code_Git/src/shared/app_types.h#L48). `ControlEvent` là 
 
 Không phải trường nào cũng được dùng cho mọi loại sự kiện. Sample dùng `readings` và timestamp; lệnh ngưỡng dùng `channel`, `value`, `source`. Không diễn giải `source` mặc định của Sample là cảm biến được đọc từ Blynk.
 
-[ControlSnapshot](../Code_Git/src/shared/app_types.h#L57) là bản chụp trạng thái điều khiển: mode, thresholds, readings, outputs và revision. `outputRevision`/`thresholdRevision` là số phiên bản ứng dụng để nhận biết thay đổi hoặc yêu cầu phát lại; chúng không phải tick RTOS.
+[ControlSnapshot](../src/shared/app_types.h#L57) là bản chụp trạng thái điều khiển: mode, thresholds, readings, outputs và revision. `outputRevision`/`thresholdRevision` là số phiên bản ứng dụng để nhận biết thay đổi hoặc yêu cầu phát lại; chúng không phải tick RTOS.
 
-[TelemetryFrame](../Code_Git/src/shared/app_types.h#L66) chứa hai bộ số: `web` là mẫu thô và `blynk` là bộ số theo chính sách fallback cũ. Tách hai bộ giúp việc gửi mạng không sửa dữ liệu mà ControlTask đang sở hữu.
+[TelemetryFrame](../src/shared/app_types.h#L66) chứa hai bộ số: `web` là mẫu thô và `blynk` là bộ số theo chính sách fallback cũ. Tách hai bộ giúp việc gửi mạng không sửa dữ liệu mà ControlTask đang sở hữu.
 
 ## 6. Ba queue ứng dụng hoạt động thế nào?
 
-Đọc [createAppQueues()](../Code_Git/src/shared/app_queues.cpp#L14), rồi đọc các hàm ngay bên dưới.
+Đọc [createAppQueues()](../src/shared/app_queues.cpp#L14), rồi đọc các hàm ngay bên dưới.
 
 | Queue | Sức chứa | Ghi | Đọc | Tác dụng |
 | --- | --- | --- | --- | --- |
@@ -109,7 +109,7 @@ Không phải trường nào cũng được dùng cho mọi loại sự kiện. 
 | snapshotQueue | 1 ControlSnapshot | `xQueueOverwrite` | `xQueuePeek` | Đọc trạng thái mới nhất, giữ lại trong queue |
 | telemetryQueue | 1 TelemetryFrame | `xQueueOverwrite` | `xQueueReceive` | Lấy frame mới nhất rồi bỏ frame đó khỏi queue |
 
-Ví dụ SensorTask có biến `event` trên stack. [postControlEvent()](../Code_Git/src/shared/app_queues.cpp#L27) đưa `&event` cho FreeRTOS để **copy `sizeof(ControlEvent)` byte vào queue**. Sau khi gửi thành công, SensorTask có thể tái sử dụng biến đó. ControlTask nhận một bản sao riêng qua [receiveControlEvent()](../Code_Git/src/shared/app_queues.cpp#L31).
+Ví dụ SensorTask có biến `event` trên stack. [postControlEvent()](../src/shared/app_queues.cpp#L27) đưa `&event` cho FreeRTOS để **copy `sizeof(ControlEvent)` byte vào queue**. Sau khi gửi thành công, SensorTask có thể tái sử dụng biến đó. ControlTask nhận một bản sao riêng qua [receiveControlEvent()](../src/shared/app_queues.cpp#L31).
 
 `xQueueReceive(..., 100 ms)` nhận ngay nếu queue đã có dữ liệu. Chỉ khi queue trống nó mới chờ, tối đa 100 ms; khi có phần tử mới, task có thể thức sớm hơn. Trong thời gian chờ, nó không quay vòng chiếm CPU.
 
@@ -117,15 +117,15 @@ Callback gửi với thời gian chờ 0: nếu đầy thì từ chối và ghi 
 
 Hai queue một phần tử là “hộp thư mới nhất”: khi mạng chậm hoặc mất mạng, giá trị cũ có thể bị ghi đè. Chúng không phải bộ lưu lịch sử hay cam kết gửi đủ mọi mẫu.
 
-Dòng [static_assert](../Code_Git/src/shared/app_queues.cpp#L10) kiểm tra lúc biên dịch rằng kiểu dữ liệu có thể copy bằng byte theo quy tắc C++. Nếu không đạt thì build lỗi với thông báo đã ghi. Nó không chạy mỗi lần gửi và không chiếm thời gian xử lý trên board. Tránh đặt `String`/đối tượng sở hữu bộ nhớ động trong các message này. Lưu ý: một con trỏ vẫn có thể là trivially copyable; phép kiểm tra không tự chứng minh dữ liệu mà con trỏ trỏ tới còn sống. Các struct hiện tại dùng giá trị trực tiếp để tránh vấn đề đó.
+Dòng [static_assert](../src/shared/app_queues.cpp#L10) kiểm tra lúc biên dịch rằng kiểu dữ liệu có thể copy bằng byte theo quy tắc C++. Nếu không đạt thì build lỗi với thông báo đã ghi. Nó không chạy mỗi lần gửi và không chiếm thời gian xử lý trên board. Tránh đặt `String`/đối tượng sở hữu bộ nhớ động trong các message này. Lưu ý: một con trỏ vẫn có thể là trivially copyable; phép kiểm tra không tự chứng minh dữ liệu mà con trỏ trỏ tới còn sống. Các struct hiện tại dùng giá trị trực tiếp để tránh vấn đề đó.
 
 ## 7. Luồng số 1: từ cảm biến đến output và màn hình
 
-Mở [sensorTask()](../Code_Git/src/tasks/sensor/sensor_task.cpp#L17). Task tạo và sở hữu DHT/Sharp, đọc số đo trong vòng lặp, đặt `type = Sample`, ghi timestamp, rồi gửi queue.
+Mở [sensorTask()](../src/tasks/sensor/sensor_task.cpp#L17). Task tạo và sở hữu DHT/Sharp, đọc số đo trong vòng lặp, đặt `type = Sample`, ghi timestamp, rồi gửi queue.
 
 Sau lần đọc, nó gọi `vTaskDelay(10 ms)`. Đây là khoảng nghỉ **sau khi công việc hoàn tất**, không có nghĩa chu kỳ lấy mẫu chính xác 10 ms. Sharp vẫn có waveform microsecond của driver; DHT có cache nội bộ khoảng 2 giây. Không thay các delay microsecond của driver bằng `vTaskDelay`.
 
-Tiếp tục tại [vòng lặp ControlTask](../Code_Git/src/tasks/control/control_task.cpp#L41):
+Tiếp tục tại [vòng lặp ControlTask](../src/tasks/control/control_task.cpp#L41):
 
 1. Nhận event.
 2. Gọi `processControlEvent(state, event)` để tính trạng thái và tác động cần thực hiện.
@@ -133,9 +133,9 @@ Tiếp tục tại [vòng lặp ControlTask](../Code_Git/src/tasks/control/contr
 4. Nếu có yêu cầu lưu ngưỡng thì ghi Preferences.
 5. Nếu đến lịch telemetry thì phát TelemetryFrame; phát snapshot sau sự kiện hợp lệ.
 
-Đọc nhánh [EventType::Sample](../Code_Git/src/tasks/control/control_state.cpp#L27), rồi [evaluateAuto()](../Code_Git/src/tasks/control/control_logic.cpp#L3). Quy tắc cũ là nhiệt độ **lớn hơn** ngưỡng, độ ẩm **nhỏ hơn** ngưỡng, bụi **lớn hơn** ngưỡng. Ví dụ mẫu hợp lệ `{36, 70, 110}` và ngưỡng `{35, 80, 100}` ở Auto yêu cầu bật cả ba output.
+Đọc nhánh [EventType::Sample](../src/tasks/control/control_state.cpp#L27), rồi [evaluateAuto()](../src/tasks/control/control_logic.cpp#L3). Quy tắc cũ là nhiệt độ **lớn hơn** ngưỡng, độ ẩm **nhỏ hơn** ngưỡng, bụi **lớn hơn** ngưỡng. Ví dụ mẫu hợp lệ `{36, 70, 110}` và ngưỡng `{35, 80, 100}` ở Auto yêu cầu bật cả ba output.
 
-`processControlEvent` chỉ tính toán trên dữ liệu; nó không gọi GPIO, Wi-Fi hay Preferences. Kết quả `effects` mô tả việc cần làm. [writeOutputs()](../Code_Git/src/tasks/control/control_task.cpp#L16) mới thực hiện ghi phần cứng. Cách tách này cho phép test quy tắc trên PC.
+`processControlEvent` chỉ tính toán trên dữ liệu; nó không gọi GPIO, Wi-Fi hay Preferences. Kết quả `effects` mô tả việc cần làm. [writeOutputs()](../src/tasks/control/control_task.cpp#L16) mới thực hiện ghi phần cứng. Cách tách này cho phép test quy tắc trên PC.
 
 Lịch telemetry 2 giây dựa trên timestamp của sample, không dựa trên lúc mạng gửi xong. Chính sách cũ được giữ: ở mẫu đến lịch gửi, nếu nhiệt độ/độ ẩm NaN hoặc bụi ngoài 0..1000 thì Blynk nhận bộ `{50,50,50}`, còn web giữ mẫu thô; Auto sử dụng bộ fallback ở lần đó. Sample tiếp theo lại cung cấp bộ thô. Việc sửa chính sách cảm biến lỗi là thay đổi riêng, chưa thuộc bước này.
 
@@ -143,10 +143,10 @@ Lịch telemetry 2 giây dựa trên timestamp của sample, không dựa trên 
 
 Ví dụ bật V6:
 
-1. [BLYNK_WRITE(V6)](../Code_Git/src/tasks/communication/network_connection.cpp#L74) được thư viện gọi khi nhận lệnh.
-2. [submitBlynkCommand()](../Code_Git/src/tasks/communication/network_connection.cpp#L61) tạo event ManualOutput, channel Temperature, value 1.
+1. [BLYNK_WRITE(V6)](../src/tasks/communication/network_connection.cpp#L74) được thư viện gọi khi nhận lệnh.
+2. [submitBlynkCommand()](../src/tasks/communication/network_connection.cpp#L61) tạo event ManualOutput, channel Temperature, value 1.
 3. Callback gửi queue rồi trả về, không ghi GPIO.
-4. ControlTask nhận event; nhánh [ManualOutput](../Code_Git/src/tasks/control/control_state.cpp#L44) chuyển mode sang Manual và chọn output nhiệt độ.
+4. ControlTask nhận event; nhánh [ManualOutput](../src/tasks/control/control_state.cpp#L44) chuyển mode sang Manual và chọn output nhiệt độ.
 5. ControlTask ghi GPIO22 theo writeMask, rồi phát snapshot.
 6. Communication đọc snapshot để cập nhật Blynk.
 
@@ -156,9 +156,9 @@ Các callback Blynk chạy trong ngữ cảnh gọi thư viện của Communicat
 
 ## 9. Luồng số 3: thay slider trên web
 
-Đọc [updateSliderPWM()](../Code_Git/data/main.js#L53). Ví dụ slider nhiệt độ gửi chuỗi `1s40` qua WebSocket `/ws`.
+Đọc [updateSliderPWM()](../data/main.js#L53). Ví dụ slider nhiệt độ gửi chuỗi `1s40` qua WebSocket `/ws`.
 
-Theo luồng [handleWebSocketRequest()](../Code_Git/src/tasks/communication/web_dashboard.cpp#L22) → [parseWebCommand()](../Code_Git/src/tasks/communication/web_command.cpp#L5) → `postControlEvent()` → [SetThreshold](../Code_Git/src/tasks/control/control_state.cpp#L67).
+Theo luồng [handleWebSocketRequest()](../src/tasks/communication/web_dashboard.cpp#L22) → [parseWebCommand()](../src/tasks/communication/web_command.cpp#L5) → `postControlEvent()` → [SetThreshold](../src/tasks/control/control_state.cpp#L67).
 
 Parser kiểm tra frame, ký tự và tràn số nguyên trước khi tạo lệnh. ControlTask đổi ngưỡng RAM, lưu Preferences, tăng thresholdRevision rồi phát snapshot. Communication phát JSON `sensor1/sensor2/sensor3`; JavaScript nhận JSON và cập nhật slider. Lệnh `getValues` và lúc WebSocket kết nối yêu cầu phát lại ngưỡng bằng cách tăng revision.
 
@@ -168,7 +168,7 @@ Phần `data/` vẫn là giao diện web, không chứa task RTOS. Task nằm tr
 
 ## 10. Phần thêm ở bước 4: CommunicationTask
 
-Mở [communicationTask()](../Code_Git/src/tasks/communication/communication_task.cpp#L14). Lúc bắt đầu nó đăng ký watchdog, khởi tạo mạng và server web. Sau đó đọc vòng lặp từ dòng 30 theo thứ tự:
+Mở [communicationTask()](../src/tasks/communication/communication_task.cpp#L14). Lúc bắt đầu nó đăng ký watchdog, khởi tạo mạng và server web. Sau đó đọc vòng lặp từ dòng 30 theo thứ tự:
 
 1. Kiểm tra Wi-Fi; nếu mất kết nối thì yêu cầu kết nối theo lịch tối đa một lần mỗi 30 giây giữa các yêu cầu. Không có vòng `while` chờ Wi-Fi lên.
 2. Khi Wi-Fi lên, thử Blynk theo lịch 5 giây tính từ khi lần thử trước kết thúc. Khi đang kết nối thì gọi `serviceCloudConnection()`.
@@ -178,7 +178,7 @@ Mở [communicationTask()](../Code_Git/src/tasks/communication/communication_tas
 6. Khi cloud kết nối, gửi tối đa một virtual pin đã đến lượt.
 7. Dọn WebSocket client, reset watchdog của chính task, nghỉ 10 ms rồi lặp lại.
 
-`RetrySchedule` tại [communication_state.cpp](../Code_Git/src/tasks/communication/communication_state.cpp#L4) dùng phép trừ unsigned để tính thời gian đã qua, hoạt động qua lần `millis()` quay vòng đối với các khoảng chờ đang dùng. Nó là lớp C++ quản lý mốc thời gian, không phải software timer riêng của FreeRTOS.
+`RetrySchedule` tại [communication_state.cpp](../src/tasks/communication/communication_state.cpp#L4) dùng phép trừ unsigned để tính thời gian đã qua, hoạt động qua lần `millis()` quay vòng đối với các khoảng chờ đang dùng. Nó là lớp C++ quản lý mốc thời gian, không phải software timer riêng của FreeRTOS.
 
 | Tình huống | Hành vi dự kiến theo code và kiểm thử host |
 | --- | --- |
@@ -189,7 +189,7 @@ Mở [communicationTask()](../Code_Git/src/tasks/communication/communication_tas
 
 ### Dữ liệu chờ gửi: CloudOutbox
 
-Đọc [stageSnapshot()](../Code_Git/src/tasks/communication/communication_state.cpp#L19), [newSession()](../Code_Git/src/tasks/communication/communication_state.cpp#L39), rồi `next()` và `sent()` phía dưới.
+Đọc [stageSnapshot()](../src/tasks/communication/communication_state.cpp#L19), [newSession()](../src/tasks/communication/communication_state.cpp#L39), rồi `next()` và `sent()` phía dưới.
 
 CloudOutbox có 13 ô tương ứng V0..V12. Một ô giữ giá trị mới nhất và cờ cần gửi. Nó là dữ liệu riêng của CommunicationTask, không phải một FreeRTOS queue dùng chung.
 
@@ -209,21 +209,21 @@ Nếu mất mạng và nhiệt độ lần lượt là 30, 31, 32, ô chờ gử
 
 ## 11. Đọc phần mạng nâng cao sau khi hiểu task và queue
 
-[network_connection.cpp](../Code_Git/src/tasks/communication/network_connection.cpp#L15) thay `Blynk.begin()` bằng `Blynk.config()` rồi thử kết nối có lịch. Wi-Fi/Blynk config cũ được chuyển nguyên giá trị sang `network_config.h`.
+[network_connection.cpp](../src/tasks/communication/network_connection.cpp#L15) thay `Blynk.begin()` bằng `Blynk.config()` rồi thử kết nối có lịch. Wi-Fi/Blynk config cũ được chuyển nguyên giá trị sang `network_config.h`.
 
 Chỉ đặt `Blynk.connect(750)` chưa tạo ra giới hạn cứng 750 ms cho cả lần gọi: bên trong còn phân giải DNS, TCP, đọc giao thức và khả năng thử port khác. Đã đối chiếu mã thư viện Blynk và Arduino-ESP32 2.0.17 trong môi trường build của project trước khi triển khai.
 
-[AsyncDns::lookup()](../Code_Git/src/tasks/communication/async_dns.cpp#L36) gửi yêu cầu qua `tcpip_try_callback` để task TCP/IP gọi DNS. Nó trả về ngay khi chưa có kết quả; task giao tiếp tiếp tục vòng làm việc. Callback DNS đưa kết quả vào **queue nội bộ một phần tử** — queue này bổ sung cho ba queue ứng dụng ở mục 6.
+[AsyncDns::lookup()](../src/tasks/communication/async_dns.cpp#L36) gửi yêu cầu qua `tcpip_try_callback` để task TCP/IP gọi DNS. Nó trả về ngay khi chưa có kết quả; task giao tiếp tiếp tục vòng làm việc. Callback DNS đưa kết quả vào **queue nội bộ một phần tử** — queue này bổ sung cho ba queue ứng dụng ở mục 6.
 
 Đối tượng request tồn tại suốt thời gian chạy. Nếu quá 2 giây vẫn chưa có kết quả, code chỉ ghi log một lần; không hủy/ghi đè request mà callback cũ còn tham chiếu. Đây là mốc quan sát, không phải bảo đảm DNS hoàn tất trong 2 giây. Khi mất Wi-Fi, generation tăng để bỏ kết quả thuộc phiên cũ. Kết quả IPv4 được cache 60 giây.
 
-[BoundedWiFiClient](../Code_Git/src/tasks/communication/bounded_wifi_client.cpp#L5) là transport riêng cho Blynk: kết nối IP với timeout 750 ms mỗi lần TCP, đặt timeout đọc/socket 1 giây theo đơn vị của WiFiClient bản đang dùng, và gửi socket bằng `MSG_DONTWAIT`. Gửi lỗi hoặc chỉ gửi một phần thì đóng phiên để tránh vòng retry ghi dài; outbox gửi lại dữ liệu hiện tại ở phiên sau. Không sửa transport của web.
+[BoundedWiFiClient](../src/tasks/communication/bounded_wifi_client.cpp#L5) là transport riêng cho Blynk: kết nối IP với timeout 750 ms mỗi lần TCP, đặt timeout đọc/socket 1 giây theo đơn vị của WiFiClient bản đang dùng, và gửi socket bằng `MSG_DONTWAIT`. Gửi lỗi hoặc chỉ gửi một phần thì đóng phiên để tránh vòng retry ghi dài; outbox gửi lại dữ liệu hiện tại ở phiên sau. Không sửa transport của web.
 
 Các biện pháp này giảm những chỗ chờ dài đã xác định trong thư viện. Tổng thời gian `Blynk.connect/run` vẫn phụ thuộc xử lý giao thức, các lần gọi thấp hơn và lập lịch; không gọi đây là hệ thống hard real-time hay khẳng định mọi vòng Communication dưới 750 ms. Cần kiểm tra router/DNS/Blynk thật và watchdog trên board.
 
 ## 12. Watchdog, ownership và những điều dễ nhầm
 
-Mỗi task ứng dụng gọi `esp_task_wdt_add(nullptr)` một lần và `esp_task_wdt_reset()` mỗi vòng. `nullptr` ở API này chỉ task đang gọi; reset watchdog là báo task còn tiến triển, không phải reset ESP32 mỗi vòng. Nếu thiếu tài nguyên, [requireTaskResource()](../Code_Git/src/shared/task_support.h#L6) ghi operation bị lỗi rồi abort.
+Mỗi task ứng dụng gọi `esp_task_wdt_add(nullptr)` một lần và `esp_task_wdt_reset()` mỗi vòng. `nullptr` ở API này chỉ task đang gọi; reset watchdog là báo task còn tiến triển, không phải reset ESP32 mỗi vòng. Nếu thiếu tài nguyên, [requireTaskResource()](../src/shared/task_support.h#L6) ghi operation bị lỗi rồi abort.
 
 Ứng dụng không thêm mutex cho state vì chỉ ControlTask sửa state/Preferences/output và các bên khác nhận bản sao qua queue. CloudOutbox chỉ CommunicationTask dùng; DHT/Sharp chỉ SensorTask dùng. FreeRTOS bảo vệ thao tác queue; các thư viện hệ thống vẫn có đồng bộ nội bộ của chúng. Nếu sau này task khác trực tiếp truy cập các đối tượng đang có một chủ sở hữu thì cần xem lại thiết kế đồng bộ.
 
@@ -231,7 +231,7 @@ ControlTask có `vTaskDelay(1)` sau mỗi lượt để nhường CPU cả khi q
 
 ## 13. Kiểm chứng đã thực hiện và giới hạn
 
-- Build ESP32 thành công: static RAM 46.372 byte, app Flash 919.509 byte. Xem [kết quả build](validation.md). Đây không phải đo heap/stack còn dư lúc chạy.
+- Build ESP32 thành công: static RAM 46.364 byte, app Flash 919.509 byte. Xem [kết quả build](validation.md). Đây không phải đo heap/stack còn dư lúc chạy.
 - 50 trường hợp logic điều khiển ở O0/O2; state/parser/queue/task Sensor-Control ở O0/O2 đều đạt.
 - So sánh 20.736 trường hợp với fixture bước 2 khớp giá trị cuối GPIO/mode/telemetry; không so sánh thời gian vật lý/thứ tự giao thức mạng.
 - Test mã CommunicationTask với network/RTOS doubles: offline, retry, phục hồi, coalesce, pacing, gửi lỗi, đồng bộ lại, watchdog. Test startup dùng chính main.cpp và kiểm tra thứ tự tạo queue/task.

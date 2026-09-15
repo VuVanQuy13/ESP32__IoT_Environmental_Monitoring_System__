@@ -1,4 +1,4 @@
-﻿# Project context
+# Project context
 
 - Root README rewritten at user request as a concise Vietnamese introduction: features, hardware/pins, software stack, quick build and validation status. Firmware unchanged.
 - ESP32 DOIT DevKit V1 environmental controller: DHT11, Sharp GP2Y10, GPIO22/5/2, Auto/Manual, Preferences, SPIFFS web and Blynk.
@@ -12,4 +12,6 @@
 - Latest pre-cleanup checks: ESP32 build PASS RAM46364/Flash919509; all host suites O0/O2 PASS; 20736 baseline comparisons PASS. See docs/validation.md. No hardware acceptance claimed.
 - User authorized removing redundant files for GitHub. Removed generated build/host-test outputs, historical logs/hash dumps, one-time migration scripts, obsolete step3 guide and boilerplate READMEs. Dependency cache remains locally ignored.
 - Consolidated source-linked guide to docs/rtos-guide.md with repository-relative links. User subsequently explicitly requested deleting the host test folder and updating README. Removed tests/fixtures and obsolete run instructions; retain historical validation results clearly labeled. Firmware source/data/config unchanged; no new test or board-validation claim.
-- network_config.h remains local and ignored; network_config.example.h documents placeholders. Never print credential values. Preparing the Git index must replace stale source snapshots that previously contained credentials. No commit or push authorized by this cleanup request.
+- Current checkout evidence supersedes the earlier cleanup note: src/tasks/communication/network_config.h is tracked (git ls-files), and .gitignore does not exclude it. Never print credential values. No credential, index, commit or push changes performed in the README task.
+
+- 2026-09-15: Read application firmware modules, web assets and PlatformIO config; rewrote README.md and src/README.md in Vietnamese for the root-level layout. Corrected RTOS guide links and its static RAM figure to match validation.md. Documented Blynk pins, SPIFFS upload, GPIO rules, dust unit discrepancy, NVS mismatch and fallback behavior. Documentation-only verification; no new build, host test or board result claimed.
