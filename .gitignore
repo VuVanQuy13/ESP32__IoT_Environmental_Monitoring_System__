@@ -1,0 +1,8 @@
+# Local build products and editor state
+**/.pio/
+**/.vscode/
+**/__pycache__/
+*.pyc
+
+# Device-specific credentials stay on the developer's machine
+Code_Git/src/tasks/communication/network_config.h
