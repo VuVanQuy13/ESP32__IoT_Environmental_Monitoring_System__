@@ -1,42 +1,42 @@
-# Cấu trúc firmware
+# Firmware Structure
 
-Firmware gồm ba task ứng dụng: **Sensor**, **Control**, **Communication**. Điểm vào là [main.cpp](main.cpp); giao diện trình duyệt ở [data/](../data/). Xem [README chính](../README.md) để cấu hình, build, nạp SPIFFS và thiết lập Blynk.
+The firmware consists of three application tasks: **Sensor**, **Control**, and **Communication**. The entry point is [main.cpp](main.cpp); browser assets are in [data/](../data/). See the [main README](../README.md) for an overview of the project features, technologies, and images.
 
-## Các module
+## Modules
 
-| Module | File chính | Trách nhiệm |
+| Module | Main files | Responsibilities |
 | --- | --- | --- |
-| Khởi động | [main.cpp](main.cpp) | Serial 9600, watchdog 15 giây, tạo queue rồi Control → Sensor → Communication; loop nghỉ 1 giây |
-| Kiểu dữ liệu | [app_types.h](shared/app_types.h) | Số đo, ngưỡng, mode, sự kiện, snapshot và telemetry |
-| Queue | [app_queues.cpp](shared/app_queues.cpp) | Tạo và truy cập ba queue ứng dụng |
-| Lỗi tài nguyên | [task_support.h](shared/task_support.h) | Log `event=rtos_fatal operation=...` rồi abort khi kiểm tra thất bại |
-| Cảm biến | [sensor_task.cpp](tasks/sensor/sensor_task.cpp), [SharpGP2Y10.cpp](tasks/sensor/SharpGP2Y10.cpp) | Sở hữu DHT/Sharp, đọc mẫu và gửi sự kiện |
-| Phần cứng điều khiển | [control_task.cpp](tasks/control/control_task.cpp) | Sở hữu state, GPIO22/5/2 và Preferences; thực thi tác động |
-| Quy tắc/trạng thái | [control_logic.cpp](tasks/control/control_logic.cpp), [control_state.cpp](tasks/control/control_state.cpp) | Auto/Manual, áp dụng sự kiện, chuẩn bị telemetry và chọn khóa NVS |
-| Điều phối giao tiếp | [communication_task.cpp](tasks/communication/communication_task.cpp), [communication_state.cpp](tasks/communication/communication_state.cpp) | Retry, đọc mailbox, phát web, gom và gửi Blynk |
-| Wi-Fi/Blynk | [network_connection.cpp](tasks/communication/network_connection.cpp) | Kết nối và chuyển callback V6–V12 thành sự kiện |
-| DNS/transport | [async_dns.cpp](tasks/communication/async_dns.cpp), [bounded_wifi_client.cpp](tasks/communication/bounded_wifi_client.cpp) | DNS qua task TCP/IP; giới hạn thao tác socket Blynk |
-| Web | [web_dashboard.cpp](tasks/communication/web_dashboard.cpp), [web_command.cpp](tasks/communication/web_command.cpp) | HTTP/SPIFFS, WebSocket, parse lệnh và JSON |
-| Cấu hình | [network_config.example.h](tasks/communication/network_config.example.h) | Mẫu cho `network_config.h` chứa Wi-Fi/Blynk |
+| Startup | [main.cpp](main.cpp) | Initialize Serial at 9600 baud and a 15-second watchdog; create queues, then start Control → Sensor → Communication; delay the Arduino loop for 1 second |
+| Data types | [app_types.h](shared/app_types.h) | Define readings, thresholds, modes, events, snapshots, and telemetry |
+| Queues | [app_queues.cpp](shared/app_queues.cpp) | Create and access the three application queues |
+| Resource checks | [task_support.h](shared/task_support.h) | Log `event=rtos_fatal operation=...` and abort when a resource check fails |
+| Sensors | [sensor_task.cpp](tasks/sensor/sensor_task.cpp), [SharpGP2Y10.cpp](tasks/sensor/SharpGP2Y10.cpp) | Own the DHT/Sharp drivers, acquire samples, and submit events |
+| Control hardware | [control_task.cpp](tasks/control/control_task.cpp) | Own application state, GPIO22/5/2, and Preferences; execute control effects |
+| Control logic and state | [control_logic.cpp](tasks/control/control_logic.cpp), [control_state.cpp](tasks/control/control_state.cpp) | Apply Auto/Manual rules and events, prepare telemetry, and select NVS keys |
+| Communication scheduling | [communication_task.cpp](tasks/communication/communication_task.cpp), [communication_state.cpp](tasks/communication/communication_state.cpp) | Schedule retries, read mailboxes, publish web data, and coalesce and send Blynk values |
+| Wi-Fi/Blynk | [network_connection.cpp](tasks/communication/network_connection.cpp) | Establish connections and convert V6–V12 callbacks into events |
+| DNS/transport | [async_dns.cpp](tasks/communication/async_dns.cpp), [bounded_wifi_client.cpp](tasks/communication/bounded_wifi_client.cpp) | Resolve DNS through the TCP/IP task and limit individual Blynk socket operations |
+| Web | [web_dashboard.cpp](tasks/communication/web_dashboard.cpp), [web_command.cpp](tasks/communication/web_command.cpp) | Serve HTTP/SPIFFS assets, process WebSocket commands, and publish JSON |
+| Configuration | [network_config.example.h](tasks/communication/network_config.example.h) | Provide a template for the Wi-Fi/Blynk settings in `network_config.h` |
 
-Các module có header cùng tên để khai báo API. Include nội bộ tính từ `src`, ví dụ `#include "shared/app_queues.h"`. Mỗi file trong thư mục task không tạo một task riêng.
+Modules have corresponding headers that declare their APIs. Internal include paths are relative to `src`, for example `#include "shared/app_queues.h"`. Each file in a task directory does not represent a separate task.
 
-## Task và quyền sở hữu
+## Tasks and Resource Ownership
 
-| Task | Priority | Stack cấu hình | Tài nguyên sở hữu |
+| Task | Priority | Configured stack | Owned resources |
 | --- | --- | --- | --- |
-| SensorTask | 1 | 4096 byte | Driver DHT/Sharp, mẫu đang đọc |
-| ControlTask | 2 | 4096 byte | ControlState, Preferences, ba ngõ ra |
-| Communication | 1 | 8192 byte | Wi-Fi/Blynk runtime, CloudOutbox, dữ liệu chờ phát |
+| SensorTask | 1 | 4096 bytes | DHT/Sharp drivers and the sample being acquired |
+| ControlTask | 2 | 4096 bytes | ControlState, Preferences, and the three outputs |
+| Communication | 1 | 8192 bytes | Wi-Fi/Blynk runtime, CloudOutbox, and pending publications |
 
-Cả ba dùng `ARDUINO_RUNNING_CORE`, tự đăng ký/reset watchdog. Callback WebSocket chạy trong ngữ cảnh thư viện AsyncTCP; chỉ parse và gửi sự kiện, không sửa state/GPIO. Callback Blynk chạy trong ngữ cảnh gọi thư viện của Communication.
+All three tasks use `ARDUINO_RUNNING_CORE` and register with and reset their own watchdog subscriptions. WebSocket callbacks run in the AsyncTCP library context; they parse and submit events without modifying application state or GPIO outputs. Blynk callbacks run in the context of Communication's library calls.
 
-## Luồng dữ liệu
+## Data Flow
 
 ```mermaid
 flowchart LR
     S[SensorTask] -->|Sample| Q[controlQueue: FIFO 16]
-    W[Web / Blynk callbacks] -->|Lệnh| Q
+    W[Web / Blynk callbacks] -->|Command| Q
     Q --> C[ControlTask]
     C --> G[GPIO / Preferences]
     C --> SQ[snapshotQueue: 1]
@@ -46,32 +46,32 @@ flowchart LR
     N --> UI[Web / Blynk]
 ```
 
-- `ControlEvent`: bản sao mẫu hoặc lệnh ManualOutput, SetMode, SetThreshold, GetThresholds.
-- `ControlSnapshot`: mode, ngưỡng, số đo, ngõ ra, revision; ghi đè và đọc bằng `xQueuePeek`.
-- `TelemetryFrame`: bộ thô cho web và bộ fallback cho Blynk; ghi đè và lấy bằng `xQueueReceive`.
-- Callback gửi queue không chờ; khi đầy thì từ chối và log. Sensor chờ tối đa 100 ms rồi log mẫu bị bỏ nếu vẫn đầy.
-- Mailbox giữ dữ liệu mới nhất, không bảo đảm gửi đủ mọi mẫu. DNS có thêm queue kết quả một phần tử riêng.
+- `ControlEvent`: a copied sample or a ManualOutput, SetMode, SetThreshold, or GetThresholds command.
+- `ControlSnapshot`: mode, thresholds, readings, outputs, and revisions; overwritten with the latest state and read using `xQueuePeek`.
+- `TelemetryFrame`: raw readings for the web and readings subject to fallback for Blynk; overwritten with the latest frame and retrieved using `xQueueReceive`.
+- Callbacks submit events without waiting; a full queue causes rejection and a log entry. Sensor waits up to 100 ms, then logs a dropped sample if the queue is still full.
+- Mailboxes retain the latest data and do not guarantee delivery of every sample. DNS has an additional, separate single-slot result queue.
 
-## Điều khiển và lưu ngưỡng
+## Control and Threshold Persistence
 
-`processControlEvent()` tính `ControlEffects`; `control_task.cpp` mới ghi GPIO/NVS. Auto bật khi nhiệt độ > ngưỡng, độ ẩm < ngưỡng, bụi > ngưỡng. Manual đổi một ngõ ra, chuyển mode toàn hệ thống sang Manual và giữ các ngõ ra còn lại. Chọn Auto áp dụng khi xử lý mẫu tiếp theo.
+`processControlEvent()` computes `ControlEffects`; `control_task.cpp` performs the GPIO/NVS writes. Auto enables the corresponding output when temperature > threshold, humidity < threshold, or dust > threshold. A manual output command changes one output, switches the entire system to Manual, and preserves the other outputs. Selecting Auto takes effect when the next sample is processed.
 
-Preferences dùng namespace `Gia tri nguong`. Boot đọc `NhietDo`, `DoAm`, `Bui`, mặc định 35/80/100. Web đặt bụi lại ghi `DoBui`; điểm không thống nhất này còn trong source. Không lưu mode/ngõ ra. Ghi NVS thất bại vẫn giữ ngưỡng RAM và log lỗi.
+Preferences uses the `Gia tri nguong` namespace. Startup reads `NhietDo`, `DoAm`, and `Bui`, with defaults of 35/80/100. Web dust updates write `DoBui` instead; this inconsistency remains in the source. Mode and output states are not persisted. If an NVS write fails, the threshold remains applied in RAM and the error is logged.
 
-Telemetry tạo mỗi khoảng 2000 ms theo timestamp mẫu. Ở lần đó, NaN nhiệt độ/độ ẩm hoặc bụi ngoài 0–1000 làm bộ Blynk và đầu vào Auto thành `{50,50,50}`; web lấy bộ thô. Ngoài lịch telemetry, Auto dùng mẫu vừa nhận. Kiểm tra sentinel chỉ bỏ qua Auto khi cả ba giá trị bằng `-999`.
+Telemetry is generated approximately every 2000 ms based on sample timestamps. At that point, a NaN temperature/humidity reading or dust outside 0–1000 replaces the Blynk readings and Auto input with `{50,50,50}`; the web receives the raw readings. Between telemetry updates, Auto uses the newly received sample. The sentinel check skips Auto only when all three readings equal `-999`.
 
-## Giao thức web
+## Web Protocol
 
-HTTP cổng 80 phục vụ `index.html` và file tĩnh từ SPIFFS. WebSocket `/ws` nhận frame text hoàn chỉnh:
+HTTP on port 80 serves `index.html` and static files from SPIFFS. WebSocket `/ws` accepts complete text frames:
 
-| Lệnh | Ý nghĩa |
+| Command | Meaning |
 | --- | --- |
-| `getValues` | Phát lại ngưỡng |
-| `1s35` | Đặt ngưỡng nhiệt độ 35 |
-| `2s80` | Đặt ngưỡng độ ẩm 80 |
-| `3s100` | Đặt ngưỡng bụi 100 |
+| `getValues` | Republish thresholds |
+| `1s35` | Set the temperature threshold to 35 |
+| `2s80` | Set the humidity threshold to 80 |
+| `3s100` | Set the dust threshold to 100 |
 
-Parser nhận số nguyên có dấu trong phạm vi int ESP32, không áp giới hạn slider HTML. JSON phát tới mọi client có hai dạng:
+The parser accepts signed integers within the ESP32 int range; it does not enforce the HTML slider limits. JSON broadcasts to all clients use two formats:
 
 ```json
 {"temperature": 30, "humidity": 70, "dust": 1.2}
@@ -81,21 +81,21 @@ Parser nhận số nguyên có dấu trong phạm vi int ESP32, không áp giớ
 {"sensor1": "35", "sensor2": "80", "sensor3": "100"}
 ```
 
-Lệnh/frame sai nhận `{"error":"invalid_command"}`; queue đầy nhận `{"error":"command_queue_full"}`. JavaScript chưa hiển thị các lỗi này. `getValues` không trả mode/ngõ ra. HTTP/WebSocket chưa có xác thực.
+Invalid commands/frames receive `{"error":"invalid_command"}`; a full queue returns `{"error":"command_queue_full"}`. The JavaScript client does not currently display these errors. `getValues` does not return mode or output states. HTTP/WebSocket authentication is not implemented.
 
-## Giao tiếp cloud
+## Cloud Communication
 
-`RetrySchedule` đặt nhịp Wi-Fi 30 giây và cloud 5 giây. `CloudOutbox` giữ giá trị mới nhất cho mỗi pin V0–V12; gửi cách nhau ít nhất 125 ms trong một phiên. Phiên mới gửi lại trạng thái cục bộ. Thành công ở transport không phải ACK từ dashboard.
+`RetrySchedule` uses a 30-second Wi-Fi retry interval and a 5-second cloud retry interval. `CloudOutbox` retains the latest value for each pin V0–V12, spacing successful writes at least 125 ms apart within a session. A new session resends the current local state. Transport success is not an acknowledgement from the dashboard.
 
-`AsyncDns` giữ request cho callback muộn, cache IPv4 60 giây và dùng generation bỏ kết quả cũ. Mốc 2 giây chỉ ghi log chờ. `BoundedWiFiClient` đặt TCP connect 750 ms, timeout socket 1 giây, gửi bằng `MSG_DONTWAIT`, đóng phiên khi ghi thiếu/lỗi. Đây không phải giới hạn cứng cho tổng thời gian xử lý Blynk.
+`AsyncDns` keeps requests alive for late callbacks, caches IPv4 results for 60 seconds, and uses generation tracking to discard obsolete results. The 2-second mark only triggers a pending-request log. `BoundedWiFiClient` sets a 750 ms TCP connection timeout and a 1-second socket timeout, writes using `MSG_DONTWAIT`, and closes the session on partial or failed writes. These limits do not impose a hard deadline on total Blynk processing time.
 
-## Thứ tự đọc và vị trí chỉnh sửa
+## Reading Order and Edit Locations
 
-1. `main.cpp` → `shared/app_types.h` → `shared/app_queues.cpp`: khởi động và thông điệp.
-2. `sensor_task.cpp` → `control_state.cpp` → `control_logic.cpp` → `control_task.cpp`: mẫu đến GPIO.
-3. `web_command.cpp` / `network_connection.cpp`: lệnh người dùng đến Control.
-4. `communication_task.cpp` → `communication_state.cpp` → DNS/transport: phát dữ liệu và reconnect.
+1. `main.cpp` → `shared/app_types.h` → `shared/app_queues.cpp`: startup and messages.
+2. `sensor_task.cpp` → `control_state.cpp` → `control_logic.cpp` → `control_task.cpp`: trace a sample through to GPIO outputs.
+3. `web_command.cpp` / `network_connection.cpp`: trace user commands to Control.
+4. `communication_task.cpp` → `communication_state.cpp` → DNS/transport: data publication and reconnection.
 
-Đổi chân cảm biến ở `sensor_task.cpp`, chân ngõ ra ở `control_task.cpp`; đổi quy tắc ở `control_logic.cpp`/`control_state.cpp`. Đổi giao thức web phải đối chiếu [main.js](../data/main.js), parser và JSON firmware. Bảng Blynk cần đồng bộ giữa callback và CloudOutbox.
+Change sensor pins in `sensor_task.cpp` and output pins in `control_task.cpp`; change control rules in `control_logic.cpp`/`control_state.cpp`. Web protocol changes must remain consistent across [main.js](../data/main.js), the parser, and firmware JSON publications. Keep Blynk pin mappings consistent between callbacks and CloudOutbox.
 
-Build tại thư mục gốc: `pio run -e esp32doit-devkit-v1`. Xem [hướng dẫn RTOS](../docs/rtos-guide.md) và [kiểm thử lịch sử](../docs/validation.md). Bộ test host không còn trong repo; kiểm chứng phần cứng bản RTOS chưa hoàn tất.
+Build from the repository root containing [platformio.ini](../platformio.ini): `pio run -e esp32doit-devkit-v1`. The host test suite is no longer included in the repository; hardware validation of the RTOS version remains incomplete.
